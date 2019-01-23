@@ -1,16 +1,15 @@
-<?hh
+<?php
 
 require 'vendor/autoload.php';
 
 $gerrit = 'https://gerrit.wikimedia.org/r/';
 $projects = [
-	'mediawiki/extensions/Translate',
-	'mediawiki/extensions/UniversalLanguageSelector',
 	'mediawiki/extensions/ContentTranslation',
 	'mediawiki/services/cxserver',
+	'mediawiki/extensions/Translate',
+	'mediawiki/extensions/UniversalLanguageSelector',
 	'mediawiki/extensions/Babel',
 	'mediawiki/extensions/TwnMainPage',
-	'mediawiki/extensions/InviteSignup',
 	'mediawiki/extensions/CleanChanges',
 	'mediawiki/extensions/LocalisationUpdate',
 	'mediawiki/extensions/cldr',
@@ -23,7 +22,7 @@ date_default_timezone_set( 'UTC' );
 use GuzzleHttp\Client;
 
 class Vatkain {
-	private Client $client;
+	private $client;
 
 	public function __construct( string $api ) {
 		$this->client = new Client( [
@@ -45,10 +44,10 @@ class Vatkain {
 		return rtrim( $output, '&' );
 	}
 
-	public function getChangeData( array<string> $projects ) {
+	public function getChangeData( array $projects ) {
 		$step = 100;
 
-		$projects = array_map( $p ==> "project:$p", $projects );
+		$projects = array_map( function( $p ) { return "project:$p"; }, $projects );
 		$projects = '(' . implode( ' OR ', $projects ) . ')';
 
 		$query = [
@@ -125,13 +124,17 @@ foreach ( $data as $item ) {
 	$grouped[$item['project']][] = $item;
 }
 
-$stringAge = $_ ==> $_['__ps_age']->format( '%a' );
-
+$stringAge = function( $_ ) {
+	return $_['__ps_age']->format( '%a' );
+};
+$sortCallback = function ( $a, $b ) use ( $stringAge ) {
+	return strnatcmp( $stringAge( $a ), $stringAge( $b ) );
+};
 foreach ( $grouped as $ext => $items ) {
-	uasort( $grouped[$ext], ( $a, $b ) ==> strnatcmp( $stringAge( $a ), $stringAge( $b ) ) );
+	uasort( $grouped[$ext], $sortCallback );
 }
 
-$fl = ( $string, $length ) ==> str_pad( substr( $string, 0, $length ), $length, ' ' );
+$fl = function ( $string, $length ) { return str_pad( substr( $string, 0, $length ), $length, ' ' ); };
 
 $totalReviewIdle = 0;
 
@@ -148,15 +151,17 @@ foreach ( $grouped as $extension => $items ) {
 	$patchCount = count( $items );
 
 	foreach ( $items as $item ) {
+		$wip = ( strpos( $item['subject'], 'WIP' ) !== false || isset( $item['work_in_progress'] ) );
+
 		$rows[] = [
 			$item['change_id'],
 			$item['subject'],
-			$item['__state'],
+			$wip ? 'WIP' : $item['__state'],
 			$item['__age']->format( '%a' ),
 			$item['__ps_age']->format( '%a' ),
 		];
 
-		if ( $item['__state'] === 'REVIEW' && strpos( $item['subject'], 'WIP' ) === false ) {
+		if ( $item['__state'] === 'REVIEW' && !$wip ) {
 			$reviewIdle += $item['__ps_age']->format( '%a' );
 			$unreviewed += 1;
 		}

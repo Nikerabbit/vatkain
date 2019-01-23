@@ -2,7 +2,7 @@
 Gerrit code review backlog tracker
 
 # Usage
-hh vatkain.php
+php vatkain.php
 
 # Example output
 ```
